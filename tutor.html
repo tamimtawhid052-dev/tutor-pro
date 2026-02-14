@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tutor Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F3F4F6;
+            -webkit-tap-highlight-color: transparent;
+            color: #1F2937;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+        }
+
+        .glass-card {
+            background: white;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .click-scale:active { transform: scale(0.96); transition: transform 0.1s; }
+
+        .floating-nav {
+            box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.15);
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-gray-50 text-gray-800">
+
+    <!-- HEADER AREA -->
+    <header class="pt-12 pb-2 px-6 bg-white/50 backdrop-blur-sm z-20 sticky top-0">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="text-xs font-bold text-indigo-500 tracking-wider uppercase mb-0.5" id="header-date">TODAY</p>
+                <h1 class="text-2xl font-extrabold tracking-tight" id="header-title">Hello Tutor 👋</h1>
+            </div>
+            <div id="sync-status" class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm border border-white click-scale" onclick="init()">
+                <i class="fas fa-sync-alt text-sm"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 overflow-y-auto no-scrollbar p-6 pb-32 relative" id="app-content">
+        <div class="flex flex-col items-center justify-center h-full">
+            <div class="loader mb-4"></div>
+            <p class="text-gray-400 text-sm">Syncing Data...</p>
+        </div>
+    </main>
+
+    <!-- FLOATING BOTTOM NAVIGATION -->
+    <div class="fixed bottom-6 left-6 right-6 z-30">
+        <nav class="glass floating-nav rounded-2xl h-16 flex justify-around items-center px-2">
+            <button onclick="router.navigate('home')" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400 h-full gap-1 transition-all duration-300" id="nav-home">
+                <i class="fas fa-home text-lg"></i>
+                <span class="text-[10px] font-medium">Home</span>
+            </button>
+            <button onclick="router.navigate('class')" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400 h-full gap-1 transition-all duration-300" id="nav-class">
+                <i class="fas fa-book-open text-lg"></i>
+                <span class="text-[10px] font-medium">Class</span>
+            </button>
+            <button onclick="router.navigate('profiles')" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400 h-full gap-1 transition-all duration-300" id="nav-profiles">
+                <i class="fas fa-users text-lg"></i>
+                <span class="text-[10px] font-medium">Profiles</span>
+            </button>
+            <button onclick="router.navigate('wallet')" class="nav-item flex-1 flex flex-col items-center justify-center text-gray-400 h-full gap-1 transition-all duration-300" id="nav-wallet">
+                <i class="fas fa-wallet text-lg"></i>
+                <span class="text-[10px] font-medium">Wallet</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-5 py-2.5 rounded-full shadow-2xl text-xs font-semibold tracking-wide opacity-0 transition-all duration-300 pointer-events-none z-50 flex items-center gap-2 scale-90">
+        <i class="fas fa-check-circle text-green-400"></i>
+        <span id="toast-msg">Success</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. DATA & STATE
+        // ==========================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbzZqtfs-j3Cf-KTrpjINfzA-PLySWKQVGNbKhZNvglnciylMtnwvCJptCNYh0Iapt62sg/exec";
+
+        let rawData = {
+            students: [],
+            curriculum: [],
+            tracker: [],
+            payments: []
+        };
+        
+        let appState = {
+            currentTab: 'home',
+            selectedStudentName: null, 
+            isLoading: true,
+            hasError: false
+        };
+
+        const getCurrentMonthStr = () => {
+            const d = new Date();
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${months[d.getMonth()]} ${d.getFullYear()}`;
+        };
+
+        // NEW: Helper function to calculate nearest upcoming class
+        function calculateNextClass(routine) {
+            if (!routine || routine === 'No Routine') return { displayText: 'No class', timestamp: Infinity };
+            const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const now = new Date();
+            
+            const schedule = routine.split(',').map(item => {
+                const parts = item.split('-').map(s => s.trim());
+                if (parts.length < 2) return null;
+                const dayName = parts[0];
+                const timeStr = parts[1];
+                const dayIdx = days.indexOf(dayName);
+                if (dayIdx === -1) return null;
+
+                let [time, modifier] = timeStr.split(' ');
+                let [hours, minutes] = time.split(':');
+                hours = parseInt(hours);
+                if (modifier === 'PM' && hours < 12) hours += 12;
+                if (modifier === 'AM' && hours === 12) hours = 0;
+
+                let nextDate = new Date();
+                nextDate.setHours(hours, parseInt(minutes || 0), 0, 0);
+                let daysAhead = (dayIdx - now.getDay() + 7) % 7;
+                
+                if (daysAhead === 0 && nextDate < now) daysAhead = 7;
+                nextDate.setDate(now.getDate() + daysAhead);
+                
+                return { display: `${dayName} - ${timeStr}`, timestamp: nextDate.getTime() };
+            }).filter(x => x);
+
+            if (!schedule.length) return { displayText: 'No class', timestamp: Infinity };
+
+            schedule.sort((a, b) => a.timestamp - b.timestamp);
+            return { displayText: 'Next: ' + schedule[0].display, timestamp: schedule[0].timestamp };
+        }
+
+        // ==========================================
+        // 2. INITIALIZATION & FETCH WITH RETRY
+        // ==========================================
+        
+        async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
+            try {
+                const fetchOptions = {
+                    method: 'GET',
+                    mode: 'cors',
+                    redirect: 'follow',
+                    ...options
+                };
+
+                const response = await fetch(url, fetchOptions);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
+            } catch (err) {
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+                }
+                throw err;
+            }
+        }
+
+        async function init() {
+            appState.isLoading = true;
+            appState.hasError = false;
+            renderApp();
+            try {
+                const urlWithTimestamp = `${API_URL}${API_URL.includes('?') ? '&' : '?'}t=${Date.now()}`;
+                const json = await fetchWithRetry(urlWithTimestamp);
+                
+                rawData.students = json.students || [];
+                rawData.curriculum = json.curriculum || [];
+                rawData.tracker = json.tracker || [];
+                rawData.payments = json.payments || [];
+                
+                appState.isLoading = false;
+                renderApp();
+                showToast("Data Synced");
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                appState.isLoading = false;
+                appState.hasError = true;
+                
+                if (rawData.students.length === 0) loadDemoData();
+                
+                renderApp();
+                showToast("Offline mode active.");
+            }
+        }
+
+        function loadDemoData() {
+            rawData = {
+                students: [
+                    { Name: "Arif Ahmed", Routine: "Sat - 08:00 PM, Mon - 08:00 PM", Mobile: "017XXXXXXXX", Salary: 5000, Subjects: "Physics, Math" },
+                    { Name: "Sara Khan", Routine: "Sun - 04:00 PM, Tue - 04:00 PM", Mobile: "018XXXXXXXX", Salary: 3500, Subjects: "Biology" }
+                ],
+                curriculum: [
+                    { Subject: "Physics", "Chapter Name": "Motion & Force" },
+                    { Subject: "Math", "Chapter Name": "Calculus" },
+                    { Subject: "Biology", "Chapter Name": "Cell Division" }
+                ],
+                tracker: [],
+                payments: []
+            };
+        }
+
+        // ==========================================
+        // 3. ROUTER & UTILS
+        // ==========================================
+        const router = {
+            navigate: (tab) => {
+                appState.currentTab = tab;
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('text-indigo-600', 'active'));
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.add('text-gray-400'));
+                const activeBtn = document.getElementById(`nav-${tab}`);
+                if (activeBtn) {
+                    activeBtn.classList.remove('text-gray-400');
+                    activeBtn.classList.add('text-indigo-600', 'active');
+                }
+                const titles = { 'home': 'Dashboard', 'class': 'Class Manager', 'profiles': 'Profiles', 'wallet': 'Wallet' };
+                document.getElementById('header-title').textContent = titles[tab] || 'Dashboard';
+                renderApp();
+            }
+        };
+
+        function renderApp() {
+            const container = document.getElementById('app-content');
+            if (appState.isLoading) {
+                container.innerHTML = `<div class="flex flex-col items-center justify-center h-full"><div class="loader mb-4"></div><p class="text-gray-400 text-sm">Loading Data...</p></div>`;
+                return;
+            }
+
+            if (appState.hasError && rawData.students.length === 0) {
+                container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center px-4"><div class="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mb-4"><i class="fas fa-wifi text-2xl"></i></div><h3 class="font-bold text-gray-800 mb-2">Network Error</h3><p class="text-xs text-gray-400 mb-8 max-w-[240px]">Sync failed. Check connection or Script URL.</p><button onclick="init()" class="bg-indigo-600 text-white px-8 py-3 rounded-full text-sm font-semibold shadow-lg click-scale">Retry Sync</button></div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            if (appState.currentTab === 'home') renderHome(container);
+            else if (appState.currentTab === 'class') renderClass(container);
+            else if (appState.currentTab === 'profiles') renderProfiles(container);
+            else if (appState.currentTab === 'wallet') renderWallet(container);
+        }
+
+        // ==========================================
+        // 4. RENDERING FUNCTIONS
+        // ==========================================
+
+        // UPDATED: renderHome with Smart Sorting and Nearest Class display
+        function renderHome(container) {
+            document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+            const list = document.createElement('div');
+            list.className = "space-y-4 fade-in";
+
+            // 1. Calculate and Sort by Nearest Class
+            const studentsWithNextClass = rawData.students.map(s => ({
+                ...s,
+                nextClass: calculateNextClass(s.Routine)
+            })).sort((a, b) => a.nextClass.timestamp - b.nextClass.timestamp);
+
+            // 2. Render sorted list
+            studentsWithNextClass.forEach(s => {
+                const card = document.createElement('div');
+                card.className = "glass-card p-5 rounded-2xl flex items-center justify-between shadow-sm click-scale";
+                card.innerHTML = `
+                    <div class="flex items-center gap-4 flex-1 cursor-pointer" onclick="appState.selectedStudentName='${s.Name}'; router.navigate('class');">
+                        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
+                            ${s.Name.charAt(0)}
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-gray-800">${s.Name}</h3>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-tight">${s.nextClass.displayText}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="tel:${s.Mobile}" class="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100 shadow-sm click-scale">
+                        <i class="fas fa-phone-alt text-xs"></i>
+                    </a>
+                `;
+                list.appendChild(card);
+            });
+            container.appendChild(list);
+        }
+
+        // UPDATED: renderClass with Collapsible Background List
+        function renderClass(container) {
+            if(!appState.selectedStudentName) {
+                container.innerHTML = `<p class="text-center text-gray-400 mt-20">Please select a student first.</p>`;
+                return;
+            }
+
+            const studentName = appState.selectedStudentName;
+            const student = rawData.students.find(st => (st.Name || "").trim().toLowerCase() === studentName.trim().toLowerCase());
+            if (!student) return;
+            const enrolledSubjects = student.Subjects ? student.Subjects.split(',').map(s => s.trim().toLowerCase()) : [];
+
+            const header = document.createElement('div');
+            header.className = "bg-white p-5 rounded-2xl shadow-sm mb-6 flex justify-between items-center";
+            header.innerHTML = `<div><h2 class="text-xl font-bold">${student.Name}</h2><p class="text-xs text-indigo-500 font-bold uppercase">Learning Pipeline</p></div>
+                                <button onclick="appState.selectedStudentName=null; router.navigate('home')" class="text-gray-300"><i class="fas fa-times-circle text-xl"></i></button>`;
+            container.appendChild(header);
+
+            const tasks = rawData.curriculum
+                .filter(c => enrolledSubjects.includes((c.Subject || "").trim().toLowerCase()))
+                .map(c => {
+                    const track = rawData.tracker.find(t => 
+                        (t.Student || t.student || "").trim().toLowerCase() === studentName.trim().toLowerCase() && 
+                        (t.Chapter || t.chapter || "").trim() === (c['Chapter Name'] || "").trim()
+                    );
+                    return { subject: c.Subject, chapter: c['Chapter Name'], status: track ? (track.Status || track.status || 'Background') : 'Background' };
+                });
+
+            const sections = [
+                { title: "Currently Running", status: "Running", icon: "fa-play", color: "text-yellow-500", btn: "Done", next: "Done" },
+                { title: "Background List", status: "Background", icon: "fa-list", color: "text-indigo-400", btn: "Start", next: "Running" },
+                { title: "Completed", status: "Done", icon: "fa-check", color: "text-green-500", btn: null }
+            ];
+
+            sections.forEach(sec => {
+                const filteredTasks = tasks.filter(t => t.status === sec.status);
+
+                if (sec.status === "Background") {
+                    // Feature 2: Wrap Background List in details/summary
+                    const details = document.createElement('details');
+                    details.className = "group mb-6";
+                    details.innerHTML = `
+                        <summary class="flex justify-between items-center cursor-pointer list-none text-[10px] font-bold text-gray-400 uppercase mb-3 ml-1 tracking-widest outline-none">
+                            <span>${sec.title} (${filteredTasks.length})</span>
+                            <i class="fas fa-chevron-down text-xs transition-transform group-open:rotate-180"></i>
+                        </summary>
+                        <div class="mt-2 space-y-2">
+                            ${filteredTasks.length === 0 ? '<p class="text-[10px] text-gray-300 py-4 text-center border border-dashed rounded-xl">Empty</p>' : 
+                                filteredTasks.map(t => `
+                                <div class="bg-white p-4 rounded-xl border flex justify-between items-center shadow-sm fade-in">
+                                    <div>
+                                        <p class="text-[9px] text-indigo-400 font-bold uppercase">${t.subject}</p>
+                                        <h4 class="text-sm font-bold text-gray-700">${t.chapter}</h4>
+                                    </div>
+                                    <button onclick="updateStatus('${student.Name}', '${t.chapter}', 'Running')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase click-scale">Start</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    container.appendChild(details);
+                } else {
+                    const div = document.createElement('div');
+                    div.className = "mb-6";
+                    div.innerHTML = `<h3 class="text-[10px] font-bold text-gray-400 uppercase mb-3 ml-1 tracking-widest">${sec.title}</h3>`;
+                    
+                    if(filteredTasks.length === 0) {
+                        div.innerHTML += `<p class="text-[10px] text-gray-300 py-4 text-center border border-dashed rounded-xl">Empty</p>`;
+                    } else {
+                        filteredTasks.forEach(t => {
+                            const taskCard = document.createElement('div');
+                            taskCard.className = "bg-white p-4 rounded-xl border mb-2 flex justify-between items-center fade-in shadow-sm";
+                            let actionBtn = sec.btn ? `<button onclick="updateStatus('${student.Name}', '${t.chapter}', '${sec.next}')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase click-scale">${sec.btn}</button>` : `<span class="text-green-500 font-bold text-[10px] uppercase">✅ Done</span>`;
+                            taskCard.innerHTML = `<div><p class="text-[9px] text-indigo-400 font-bold uppercase">${t.subject}</p><h4 class="text-sm font-bold text-gray-700">${t.chapter}</h4></div>${actionBtn}`;
+                            div.appendChild(taskCard);
+                        });
+                    }
+                    container.appendChild(div);
+                }
+            });
+        }
+
+        function renderProfiles(container) {
+            const list = document.createElement('div');
+            list.className = "space-y-4 fade-in";
+            rawData.students.forEach(s => {
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl p-5 shadow-sm border border-gray-100";
+                card.innerHTML = `
+                    <div class="flex items-start gap-4">
+                        <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-xl"><i class="fas fa-user"></i></div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-gray-800">${s.Name || "Unknown"}</h3>
+                            <p class="text-xs text-gray-400 mt-1">Subjects: ${s.Subjects || 'N/A'}</p>
+                            <p class="text-xs text-gray-400">Routine: ${s.Routine || 'N/A'}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-gray-400 uppercase font-bold">Salary</p>
+                            <p class="font-bold text-indigo-600">৳${s.Salary || 0}</p>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+            container.appendChild(list);
+        }
+
+        function renderWallet(container) {
+            const currentMonthLabel = getCurrentMonthStr(); 
+            const now = new Date();
+            const currentM = now.getMonth();
+            const currentY = now.getFullYear();
+            
+            const totalCollected = rawData.payments.reduce((sum, p) => {
+                const pDate = new Date(p.MonthYear || p.monthYear || p.month);
+                const isThisMonth = pDate.getMonth() === currentM && pDate.getFullYear() === currentY;
+                
+                if (isThisMonth) {
+                    const pName = (p.Student || p.student || "").trim().toLowerCase();
+                    const student = rawData.students.find(s => (s.Name || "").trim().toLowerCase() === pName);
+                    return sum + (Number(p.Amount || p.amount || student?.Salary || 0));
+                }
+                return sum;
+            }, 0);
+            
+            const header = document.createElement('div');
+            header.className = "bg-gradient-to-r from-indigo-600 to-purple-600 p-6 rounded-[2rem] text-white shadow-xl mb-8 fade-in";
+            header.innerHTML = `<div><p class="text-indigo-100 text-xs font-bold uppercase mb-1">Total Collection</p><p class="text-indigo-200 text-xs font-medium mb-3">${currentMonthLabel}</p><h1 class="text-4xl font-extrabold">৳${totalCollected.toLocaleString()}</h1></div>`;
+            container.appendChild(header);
+
+            const list = document.createElement('div');
+            list.className = "space-y-3 fade-in";
+            
+            rawData.students.forEach(s => {
+                const sName = (s.Name || "").trim();
+                const sSalary = Number(s.Salary) || 0;
+
+                const hasPaid = rawData.payments.some(p => {
+                    const pName = (p.Student || p.student || "").trim().toLowerCase();
+                    const pDate = new Date(p.MonthYear || p.monthYear || p.month);
+                    const isThisMonth = pDate.getMonth() === currentM && pDate.getFullYear() === currentY;
+                    return pName === sName.toLowerCase() && isThisMonth;
+                });
+                
+                const actionBtn = hasPaid 
+                    ? `<span class="bg-green-50 text-green-600 px-3 py-1.5 rounded-full text-[10px] font-bold">Paid ✅</span>` 
+                    : `<button onclick="receivePayment('${sName}', ${sSalary})" class="bg-indigo-600 text-white px-4 py-2 rounded-full text-[10px] font-bold shadow-md click-scale">Receive</button>`;
+
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-xl border border-gray-100 flex justify-between items-center shadow-sm";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-indigo-500">${sName.charAt(0) || "?"}</div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 text-sm">${sName}</h4>
+                            <p class="text-xs text-gray-400">৳${sSalary}</p>
+                        </div>
+                    </div>
+                    ${actionBtn}
+                `;
+                list.appendChild(card);
+            });
+            container.appendChild(list);
+        }
+
+        async function updateStatus(sName, cName, newStatus) {
+            const existing = rawData.tracker.find(t => 
+                (t.Student || t.student || "").trim().toLowerCase() === (sName || "").trim().toLowerCase() && 
+                (t.Chapter || t.chapter || "").trim() === (cName || "").trim()
+            );
+            
+            if (existing) {
+                if (existing.Status !== undefined) existing.Status = newStatus;
+                else existing.status = newStatus;
+            } else {
+                rawData.tracker.push({ Student: sName, Chapter: cName, Status: newStatus });
+            }
+            
+            renderApp();
+            showToast(`Task moved to ${newStatus}`);
+
+            try {
+                const params = new URLSearchParams({
+                    action: 'updateTracker',
+                    student: sName,
+                    chapter: cName,
+                    status: newStatus
+                });
+                const response = await fetch(`${API_URL}?${params.toString()}`);
+                const result = await response.json();
+                if (result.status !== "success") throw new Error("API reported failure");
+            } catch (e) { 
+                console.error("Sync error:", e);
+                showToast("Sync error. Changes saved locally."); 
+            }
+        }
+
+        async function receivePayment(studentName, amount) {
+            const dateStr = new Date().toISOString();
+            rawData.payments.push({ Student: studentName, MonthYear: dateStr, Amount: amount, Status: "Done" });
+            renderApp();
+            showToast(`Payment received for ${studentName}`);
+            
+            try {
+                const params = new URLSearchParams({ action: 'pay', student: studentName, month: dateStr, amount: amount });
+                const res = await fetch(`${API_URL}?${params.toString()}`);
+                const result = await res.json();
+                if (result.status !== "success") throw new Error("Sync failed");
+            } catch (e) {
+                console.error("Payment Sync Error:", e);
+                showToast("Sync Error: Saved locally only");
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            const msgEl = document.getElementById('toast-msg');
+            if (msgEl) msgEl.textContent = msg;
+            
+            toast.classList.remove('opacity-0', 'scale-90');
+            toast.classList.add('opacity-100', 'scale-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'scale-100');
+                toast.classList.add('opacity-0', 'scale-90');
+            }, 2500);
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
